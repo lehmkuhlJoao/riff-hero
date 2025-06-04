@@ -12,6 +12,17 @@ FetchContent_Declare(SFML
     SYSTEM)
 FetchContent_MakeAvailable(SFML)
 
+# Forçar UTF-8 mais agressivamente
+if(MSVC)
+    add_compile_options(/utf-8)
+    add_compile_definitions(UNICODE _UNICODE)
+    set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+endif()
+
+# Para todos os compiladores
+add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -finput-charset=UTF-8 -fexec-charset=UTF-8")
+
 add_executable(main src/main.cpp)
-target_compile_features(main PRIVATE cxx_std_17)
-target_link_libraries(main PRIVATE SFML::Graphics)
+target_compile_features(main PRIVATE cxx_std_20)
+target_link_libraries(main PRIVATE SFML::Graphics SFML::System SFML::Window SFML::Network SFML::Audio SFML::Main)
