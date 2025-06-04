@@ -585,8 +585,6 @@ private:
 
     // Audio
     sf::Music musica;
-    sf::SoundBuffer bufferSomAcerto;
-    sf::Sound somAcerto;
 
     // Sistema de partículas
     std::vector<Particula> particulas;
@@ -599,9 +597,7 @@ private:
     sf::Shader shaderNota;
     sf::Shader shaderFundo;
     sf::Texture texturaBranca;
-    sf::Texture texturaFundo;
     std::optional<sf::Sprite> spriteBranco;
-    std::optional<sf::Sprite> spriteFundo;
     sf::RectangleShape formaPreenchimentoFundo;
     bool shadersDisponiveis = true;
 
@@ -643,7 +639,6 @@ public:
                          {sf::Keyboard::Key::L, 2}, {sf::Keyboard::Key::Semicolon, 3},
                          {sf::Keyboard::Key::Apostrophe, 4}
                      }),
-             somAcerto(bufferSomAcerto),
              motorRandomico(std::random_device{}()),
              distribuicaoAnguloParticula(0.f, 2.f * std::numbers::pi_v<float>),
              distribuicaoVelocidadeParticula(VELOCIDADE_PARTICULA_MIN, VELOCIDADE_PARTICULA_MAX),
@@ -696,11 +691,6 @@ private:
             std::cerr << "Erro: Não foi possível carregar a fonte fonte.ttf" << std::endl;
         }
 
-        // Carrega som de acerto
-        if (!bufferSomAcerto.loadFromFile("hit.ogg")) {
-            std::cerr << "Erro: Não foi possível carregar hit.ogg" << std::endl;
-        }
-
         // Inicializa shaders
         shadersDisponiveis = sf::Shader::isAvailable();
         if (shadersDisponiveis) {
@@ -718,13 +708,9 @@ private:
         if (!texturaBranca.loadFromFile("branco.png")) {
             std::cerr << "Erro ao carregar textura branco.png." << std::endl;
         }
-        if (!texturaFundo.loadFromFile("background.png")) {
-            std::cerr << "Erro ao carregar textura background.png." << std::endl;
-        }
 
         // Inicializa sprites
         spriteBranco.emplace(texturaBranca);
-        spriteFundo.emplace(texturaFundo);
 
         // Configura forma de preenchimento do fundo
         formaPreenchimentoFundo.setSize({static_cast<float>(LARGURA_JANELA),
@@ -1293,11 +1279,6 @@ private:
                 (std::abs(nota.timestampSec - tempoMusicaSec) * 1000.0) <= TOLERANCIA_ACERTO_MS) {
 
                 nota.acertada = true;
-
-                // Toca som de acerto
-                if (bufferSomAcerto.getSampleCount() > 0) {
-                    somAcerto.play();
-                }
 
                 // Spawna partículas
                 spawnarParticulas(nota.obterPosicaoAcerto(), nota.cor);
