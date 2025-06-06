@@ -11,7 +11,8 @@
  *
  * Características:
  * - Suporte para dois jogadores simultâneos
- * - Sistema de partículas para feedback visual
+ * - Sistema de partículas para feedback visual (usando std::queue)
+ * - Sistema de combo com multiplicador de pontos (usando std::stack)
  * - Notas longas (sustain) com pontuação contínua
  * - Carregamento de charts no formato ".chart"
  * - Shaders para efeitos visuais aprimorados
@@ -44,8 +45,9 @@
 #include <array>
 #include <string_view>
 #include <ranges>
-#include <codecvt>
 #include <locale>
+#include <stack>
+#include <queue>
 
 // ============================= CONSTANTES GLOBAIS =============================
 
@@ -62,8 +64,8 @@ constexpr auto LARGURA_PISTA = LARGURA_BRASTEADO / NUMERO_PISTAS;
 
 // Configurações das notas
 constexpr auto ALTURA_NOTA = 45;
-constexpr auto Y_ZONA_ACERTO = ALTURA_JANELA - 100;
-constexpr auto ALTURA_ZONA_ACERTO = 75;
+constexpr auto Y_ZONA_ACERTO = ALTURA_JANELA - 200;
+constexpr auto ALTURA_ZONA_ACERTO = 150;
 constexpr auto VELOCIDADE_QUEDA_NOTA_PPS = 800.0f;
 
 // Configurações de timing
@@ -82,10 +84,15 @@ constexpr auto VELOCIDADE_PARTICULA_MAX = 150.f;
 constexpr auto VELOCIDADE_PARTICULA_SUSTAIN_MAX = 50.f;
 constexpr auto TAMANHO_PARTICULA = 16.f;
 constexpr auto INTERVALO_SPAWN_PARTICULA_SUSTAIN = sf::seconds(0.08f);
+constexpr auto MAX_PARTICULAS_ATIVAS = 200;
 
 // Configurações do painel de pontuação
 constexpr auto ALTURA_PAINEL_PONTUACAO = 60.f;
 constexpr auto OFFSET_Y_PAINEL_PONTUACAO = 5.f;
+
+// Configurações de combo
+constexpr auto MAX_HISTORICO_COMBO = 20;
+constexpr auto COMBO_BASE_MULTIPLIER = 0.1f;  // Cada combo adiciona 10% de bônus
 
 // Nomes de uniformes para shaders
 const auto UNIFORM_RESOLUCAO = "Resolucao";
@@ -175,6 +182,12 @@ struct Jogador {
     std::set<sf::Keyboard::Key> teclasPresionadas;
     std::map<int, bool> pistaPermiteAcertoNotaCurta;
 
+    // Sistema de combo usando stack (LIFO - Last In, First Out)
+    std::stack<std::pair<int, sf::Time>> historicoNotasAcertadas; // pista e timestamp
+    int comboAtual = 0;
+    int maiorCombo = 0;
+    float multiplicadorCombo = 1.0f;
+
     /**
      * @brief Construtor do jogador
      * @param n Nome do jogador
@@ -189,10 +202,79 @@ struct Jogador {
     }
 
     /**
-     * @brief Adiciona pontos ao jogador
-     * @param pontos Quantidade de pontos a adicionar
+     * @brief Adiciona pontos ao jogador com multiplicador de combo
+     * @param pontos Quantidade de pontos base a adicionar
      */
-    void adicionarPontuacao(const int pontos) { pontuacao += pontos; }
+    void adicionarPontuacao(const int pontos) {
+        const int pontosComBonus = static_cast<int>(pontos * multiplicadorCombo);
+        pontuacao += pontosComBonus;
+    }
+
+    /**
+     * @brief Registra uma nota acertada no histórico de combo usando stack
+     * @param pista Pista da nota acertada
+     * @param tempoAcerto Tempo quando foi acertada
+     */
+    void registrarNotaAcertada(const int pista, const sf::Time tempoAcerto) {
+        historicoNotasAcertadas.push({pista, tempoAcerto});
+        comboAtual++;
+
+        if (comboAtual > maiorCombo) {
+            maiorCombo = comboAtual;
+        }
+
+        // Atualiza multiplicador de combo: 1.0x -> 1.1x -> 1.2x -> 1.3x...
+        multiplicadorCombo = 1.0f + (comboAtual * COMBO_BASE_MULTIPLIER);
+
+        // Limita o tamanho do histórico na stack
+        if (historicoNotasAcertadas.size() > MAX_HISTORICO_COMBO) {
+            std::stack<std::pair<int, sf::Time>> temp;
+            for (size_t i = 0; i < MAX_HISTORICO_COMBO - 1; ++i) {
+                temp.push(historicoNotasAcertadas.top());
+                historicoNotasAcertadas.pop();
+            }
+            historicoNotasAcertadas = std::stack<std::pair<int, sf::Time>>();
+            while (!temp.empty()) {
+                historicoNotasAcertadas.push(temp.top());
+                temp.pop();
+            }
+        }
+    }
+
+    /**
+     * @brief Quebra o combo atual (quando erra uma nota)
+     */
+    void quebrarCombo() {
+        comboAtual = 0;
+        multiplicadorCombo = 1.0f;
+    }
+
+    /**
+     * @brief Obtém as últimas N notas acertadas da stack
+     * @param quantidade Quantas notas buscar
+     * @return Vector com as últimas notas (mais recente primeiro)
+     */
+    std::vector<int> obterUltimasNotasAcertadas(const int quantidade) const {
+        std::vector<int> resultado;
+        std::stack<std::pair<int, sf::Time>> temp = historicoNotasAcertadas;
+
+        for (int i = 0; i < quantidade && !temp.empty(); ++i) {
+            resultado.push_back(temp.top().first);
+            temp.pop();
+        }
+
+        return resultado;
+    }
+
+    /**
+     * @brief Obtém o multiplicador de combo formatado como string
+     * @return String formatada do multiplicador (ex: "1.3x")
+     */
+    std::string obterMultiplicadorFormatado() const {
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(1) << multiplicadorCombo << "x";
+        return oss.str();
+    }
 };
 
 // ============================= NAMESPACE CHART =============================
@@ -330,8 +412,16 @@ namespace Chart {
 
                 // Processa linha na seção atual
                 if (!secaoAtual.empty()) {
-                    processarLinhaNaSecao(dadosChart, secaoAtual, linhaAtual, padraoChaveValor,
-                                        padraoNota, padraoTempo, padraoAssinaturaTempo);
+                    // Sempre processa Song e SyncTrack
+                    if (secaoAtual == "Song" || secaoAtual == "SyncTrack") {
+                        processarLinhaNaSecao(dadosChart, secaoAtual, linhaAtual, padraoChaveValor,
+                                            padraoNota, padraoTempo, padraoAssinaturaTempo);
+                    }
+                    // Só processa a dificuldade desejada
+                    else if (secaoAtual == "HardSingle") {
+                        processarLinhaNaSecao(dadosChart, secaoAtual, linhaAtual, padraoChaveValor,
+                                            padraoNota, padraoTempo, padraoAssinaturaTempo);
+                    }
                 }
             }
 
@@ -586,8 +676,9 @@ private:
     // Audio
     sf::Music musica;
 
-    // Sistema de partículas
-    std::vector<Particula> particulas;
+    // Sistema de partículas usando queue (FIFO - First In, First Out)
+    std::queue<Particula> particulasAtivas;
+    std::queue<Particula> particulasReutilizaveis; // Pool de partículas para reutilizar
     std::mt19937 motorRandomico;
     std::uniform_real_distribution<float> distribuicaoAnguloParticula;
     std::uniform_real_distribution<float> distribuicaoVelocidadeParticula;
@@ -628,7 +719,7 @@ public:
      */
     Jogo() : janela(sf::VideoMode({static_cast<unsigned int>(LARGURA_JANELA),
                                    static_cast<unsigned int>(ALTURA_JANELA)}),
-                    "SFML Riff Hero", sf::Style::Close | sf::Style::Titlebar),
+                    "Riff Hero", sf::Style::Close | sf::Style::Titlebar),
              jogador1("Jogador 1", 0, {
                          {sf::Keyboard::Key::A, 0}, {sf::Keyboard::Key::S, 1},
                          {sf::Keyboard::Key::D, 2}, {sf::Keyboard::Key::F, 3},
@@ -753,7 +844,6 @@ private:
 
                     // Cria notas para ambos os jogadores
                     todasNotasMusicaMestre.emplace_back(notaChart, tempoNotaSec, tempoFimSustainSec, &jogador1);
-                    todasNotasMusicaMestre.emplace_back(notaChart, tempoNotaSec, tempoFimSustainSec, &jogador2);
                 }
             }
         }
@@ -824,17 +914,28 @@ private:
 
         // Reseta estado dos jogadores
         jogador1.pontuacao = 0;
+        jogador1.comboAtual = 0;
+        jogador1.maiorCombo = 0;
+        jogador1.multiplicadorCombo = 1.0f;
         jogador1.teclasPresionadas.clear();
+        jogador1.historicoNotasAcertadas = std::stack<std::pair<int, sf::Time>>(); // Limpa a stack
         for (auto &entrada : jogador1.pistaPermiteAcertoNotaCurta) entrada.second = true;
 
         jogador2.pontuacao = 0;
+        jogador2.comboAtual = 0;
+        jogador2.maiorCombo = 0;
+        jogador2.multiplicadorCombo = 1.0f;
         jogador2.teclasPresionadas.clear();
+        jogador2.historicoNotasAcertadas = std::stack<std::pair<int, sf::Time>>(); // Limpa a stack
         for (auto &entrada : jogador2.pistaPermiteAcertoNotaCurta) entrada.second = true;
 
         // Limpa estados
         notasJ1.clear();
         notasJ2.clear();
-        particulas.clear();
+
+        // Limpa queues de partículas
+        particulasAtivas = std::queue<Particula>();
+        particulasReutilizaveis = std::queue<Particula>();
 
         // Cria instâncias das notas para o jogo
         for (const auto &notaModelo : todasNotasMusicaMestre) {
@@ -866,6 +967,18 @@ private:
 
         relogioLoopJogo.restart();
         tempoDesdeUltimaAtualizacao = sf::Time::Zero;
+    }
+
+    /**
+     * @brief Obtém uma partícula da pool ou cria uma nova usando queue
+     */
+    Particula obterParticulaReutilizavel() {
+        if (!particulasReutilizaveis.empty()) {
+            Particula p = particulasReutilizaveis.front();
+            particulasReutilizaveis.pop();
+            return p;
+        }
+        return Particula{}; // Cria nova se pool estiver vazia
     }
 
     /**
@@ -1086,9 +1199,19 @@ private:
 
         if (!nota.ehNotaLonga && nota.posicaoY > Y_ZONA_ACERTO + ALTURA_ZONA_ACERTO + raioCapeca) {
             nota.perdida = true;
+
+            // Quebra combo quando perde uma nota
+            if (nota.dono && !nota.acertada) {
+                nota.dono->quebrarCombo();
+            }
         } else if (nota.ehNotaLonga && tempoMusicaSec > nota.tempoFimSustainSec +
                   (static_cast<double>(TOLERANCIA_ACERTO_MS) / 1000.0)) {
             nota.perdida = true;
+
+            // Quebra combo quando perde uma nota longa
+            if (nota.dono && !nota.acertada) {
+                nota.dono->quebrarCombo();
+            }
         }
     }
 
@@ -1137,7 +1260,7 @@ private:
     }
 
     /**
-     * @brief Spawna partículas para efeito de sustain
+     * @brief Spawna partículas para efeito de sustain usando queue
      * @param nota Nota que está em sustain
      * @param jogador Jogador (não usado atualmente)
      */
@@ -1145,7 +1268,13 @@ private:
         const auto posicaoParticula = nota.obterPosicaoParticulaSustain();
 
         for (int i = 0; i < PARTICULAS_SUSTAIN; ++i) {
-            Particula p;
+            // Limita número de partículas ativas
+            if (particulasAtivas.size() >= MAX_PARTICULAS_ATIVAS) {
+                particulasReutilizaveis.push(particulasAtivas.front());
+                particulasAtivas.pop();
+            }
+
+            Particula p = obterParticulaReutilizavel();
             p.forma.setSize({TAMANHO_PARTICULA, TAMANHO_PARTICULA});
             p.forma.setFillColor(sf::Color(nota.cor.r, nota.cor.g, nota.cor.b, 150));
             p.forma.setOrigin({TAMANHO_PARTICULA / 2.f, TAMANHO_PARTICULA / 2.f});
@@ -1161,18 +1290,24 @@ private:
 
             p.velocidade = {(std::cos(angulo) * velocidade) * 5.f, (std::sin(angulo) * velocidade) * 5.f};
             p.tempoVida = sf::seconds(distribuicaoTempoVidaParticula(motorRandomico) * 0.7f);
-            particulas.push_back(p);
+            particulasAtivas.push(p);
         }
     }
 
     /**
-     * @brief Spawna partículas para efeito de acerto
+     * @brief Spawna partículas para efeito de acerto usando queue
      * @param posicao Posição onde spawnar
      * @param cor Cor das partículas
      */
     void spawnarParticulas(const sf::Vector2f posicao, const sf::Color cor) {
         for (int i = 0; i < PARTICULAS_POR_ACERTO; ++i) {
-            Particula p;
+            // Limita número de partículas ativas
+            if (particulasAtivas.size() >= MAX_PARTICULAS_ATIVAS) {
+                particulasReutilizaveis.push(particulasAtivas.front());
+                particulasAtivas.pop();
+            }
+
+            Particula p = obterParticulaReutilizavel();
             p.forma.setSize({TAMANHO_PARTICULA, TAMANHO_PARTICULA});
             p.forma.setFillColor(cor);
             p.forma.setOrigin({TAMANHO_PARTICULA / 2.f, TAMANHO_PARTICULA / 2.f});
@@ -1182,19 +1317,27 @@ private:
             const auto velocidade = distribuicaoVelocidadeParticula(motorRandomico);
             p.velocidade = {std::cos(angulo) * velocidade, std::sin(angulo) * velocidade};
             p.tempoVida = sf::seconds(distribuicaoTempoVidaParticula(motorRandomico));
-            particulas.push_back(p);
+
+            particulasAtivas.push(p);
         }
     }
 
     /**
-     * @brief Atualiza sistema de partículas
+     * @brief Atualiza sistema de partículas usando queue
      * @param dt Delta time
      */
     void atualizarParticulas(const sf::Time dt) {
-        std::erase_if(particulas, [&](Particula &p) {
+        const int tamanhoInicial = particulasAtivas.size();
+
+        for (int i = 0; i < tamanhoInicial; ++i) {
+            Particula p = particulasAtivas.front();
+            particulasAtivas.pop();
+
             p.tempoVida -= dt;
             if (p.tempoVida <= sf::Time::Zero) {
-                return true;
+                // Partícula morreu, coloca na pool para reutilização
+                particulasReutilizaveis.push(p);
+                continue;
             }
 
             p.posicao += p.velocidade * dt.asSeconds();
@@ -1205,8 +1348,9 @@ private:
             cor.a = static_cast<std::uint8_t>(std::max(0.f, 255.f * proporcaoTempoVida));
             p.forma.setFillColor(cor);
 
-            return false;
-        });
+            // Partícula ainda viva, volta para a fila
+            particulasAtivas.push(p);
+        }
     }
 
     /**
@@ -1263,7 +1407,7 @@ private:
     }
 
     /**
-     * @brief Verifica se uma nota foi acertada
+     * @brief Verifica se uma nota foi acertada e atualiza o sistema de combo
      * @param jogador Jogador que tentou acertar
      * @param notas Notas do jogador
      * @param pistaAlvo Pista da tecla pressionada
@@ -1280,19 +1424,24 @@ private:
 
                 nota.acertada = true;
 
+                // Registra nota acertada na stack para sistema de combo
+                jogador.registrarNotaAcertada(nota.pista, sf::seconds(tempoMusicaSec));
+
                 // Spawna partículas
                 spawnarParticulas(nota.obterPosicaoAcerto(), nota.cor);
 
-                // Adiciona pontuação
+                // Adiciona pontuação com multiplicador de combo
                 if (nota.ehNotaLonga) {
                     jogador.adicionarPontuacao(5);
                 } else {
                     jogador.adicionarPontuacao(10);
                 }
+
+                return false;
             }
         }
 
-        return false;  // Mantido como estava no código original
+        return false;
     }
 
     /**
@@ -1426,7 +1575,18 @@ private:
         pontuacaoP1.setOrigin({limitesP1.position.x + limitesP1.size.x / 2.f, limitesP1.position.y});
         pontuacaoP1.setPosition({xCentroTexto, yAtual});
         janela.draw(pontuacaoP1);
-        yAtual += limitesP1.size.y + 25.f;
+        yAtual += limitesP1.size.y + 8.f;
+
+        // Desenha combo e multiplicador para jogador 1
+        const sf::String textoComboP1 = utf8ParaSfString("Combo: " + std::to_string(jogador1.comboAtual) +
+                                                         " (" + jogador1.obterMultiplicadorFormatado() + ")");
+        sf::Text comboP1(fonte, textoComboP1, 16);
+        comboP1.setFillColor(sf::Color(255, 200, 100));
+        const auto limitesComboP1 = comboP1.getLocalBounds();
+        comboP1.setOrigin({limitesComboP1.position.x + limitesComboP1.size.x / 2.f, limitesComboP1.position.y});
+        comboP1.setPosition({xCentroTexto, yAtual});
+        janela.draw(comboP1);
+        yAtual += limitesComboP1.size.y + 20.f;
 
         const sf::String textoP2 = jogador2.nome + utf8ParaSfString("\n" + formatarPontuacao(jogador2.pontuacao));
         sf::Text pontuacaoP2(fonte, textoP2, 22);
@@ -1435,7 +1595,31 @@ private:
         pontuacaoP2.setOrigin({limitesP2.position.x + limitesP2.size.x / 2.f, limitesP2.position.y});
         pontuacaoP2.setPosition({xCentroTexto, yAtual});
         janela.draw(pontuacaoP2);
-        yAtual += limitesP2.size.y + 35.f;
+        yAtual += limitesP2.size.y + 8.f;
+
+        // Desenha combo e multiplicador para jogador 2
+        const sf::String textoComboP2 = utf8ParaSfString("Combo: " + std::to_string(jogador2.comboAtual) +
+                                                         " (" + jogador2.obterMultiplicadorFormatado() + ")");
+        sf::Text comboP2(fonte, textoComboP2, 16);
+        comboP2.setFillColor(sf::Color(150, 200, 255));
+        const auto limitesComboP2 = comboP2.getLocalBounds();
+        comboP2.setOrigin({limitesComboP2.position.x + limitesComboP2.size.x / 2.f, limitesComboP2.position.y});
+        comboP2.setPosition({xCentroTexto, yAtual});
+        janela.draw(comboP2);
+        yAtual += limitesComboP2.size.y + 25.f;
+
+        // Desenha maior combo dos jogadores
+        if (jogoIniciado || jogoRodando) {
+            const sf::String textoMaiorCombo = utf8ParaSfString("Melhor Combo\nJ1: " + std::to_string(jogador1.maiorCombo) +
+                                                               "  J2: " + std::to_string(jogador2.maiorCombo));
+            sf::Text maiorCombo(fonte, textoMaiorCombo, 14);
+            maiorCombo.setFillColor(sf::Color(200, 200, 200));
+            const auto limitesMaiorCombo = maiorCombo.getLocalBounds();
+            maiorCombo.setOrigin({limitesMaiorCombo.position.x + limitesMaiorCombo.size.x / 2.f, limitesMaiorCombo.position.y});
+            maiorCombo.setPosition({xCentroTexto, yAtual});
+            janela.draw(maiorCombo);
+            yAtual += limitesMaiorCombo.size.y + 25.f;
+        }
 
         // Desenha tempo da música se estiver tocando
         if ((musica.getStatus() == sf::SoundSource::Status::Playing || jogoIniciado) && chartCarregado) {
@@ -1511,6 +1695,7 @@ private:
             janela.draw(controlesP2);
         }
     }
+
     /**
      * @brief Desenha o brasteado (pistas e zona de acerto)
      * @param jogador Jogador
@@ -1549,11 +1734,18 @@ private:
     }
 
     /**
-     * @brief Desenha todas as partículas
+     * @brief Desenha todas as partículas da queue
      */
     void desenharParticulas() {
-        for (const auto &particula : particulas) {
-            janela.draw(particula.forma);
+        const int tamanho = particulasAtivas.size();
+
+        for (int i = 0; i < tamanho; ++i) {
+            Particula p = particulasAtivas.front();
+            particulasAtivas.pop();
+
+            janela.draw(p.forma);
+
+            particulasAtivas.push(p); // Volta para a fila
         }
     }
 
