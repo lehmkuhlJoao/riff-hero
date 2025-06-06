@@ -1,101 +1,114 @@
-# CMake SFML Project Template
+# SFML Riff Hero
 
-This repository template should allow for a fast and hassle-free kick start of your next SFML project using CMake.
-Thanks to [GitHub's nature of templates](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template), you can fork this repository without inheriting its Git history.
+Projeto acadêmico desenvolvido para a disciplina de Estrutura de Dados, o **SFML Riff Hero** é um jogo de ritmo inspirado no Guitar Hero. O jogo foi construído do zero utilizando C++ moderno, com foco em desempenho, portabilidade e efeitos visuais avançados.
 
-The template starts out very basic, but might receive additional features over time:
+## Sobre o Jogo
 
-- Basic CMake script to build your project and link SFML on any operating system
-- Basic [GitHub Actions](https://github.com/features/actions) script for all major platforms
+- Suporte para dois jogadores simultâneos.
+- Detecção precisa de acertos com margem de tolerância.
+- Notas longas (sustain) com pontuação contínua.
+- Sistema de partículas para feedback visual.
+- Fundo animado utilizando shaders em GLSL.
+- Leitura de arquivos `.chart` personalizados.
+- Suporte completo a UTF-8 para nomes com acentuação.
+- Atualmente compilado para **Windows**, mas com potencial para ser portado para Linux e macOS.
 
-## How to Use
+## Tecnologias Utilizadas
 
-1. Install [Git](https://git-scm.com/downloads) and [CMake](https://cmake.org/download/). Use your system's package manager if available.
-2. Follow [GitHub's instructions](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template) for how to use their project template feature to create your own project. If you don't want to use GitHub, see the section below.
-3. Clone your new GitHub repo and open the repo in your text editor of choice.
-4. Open [CMakeLists.txt](CMakeLists.txt). Rename the project and the target name of the executable to whatever name you want. Make sure to change all occurrences.
-5. If you want to add or remove any .cpp files, change the source files listed in the `add_executable` call in CMakeLists.txt to match the source files your project requires. If you plan on keeping the default main.cpp file then no changes are required.
-6. If your code uses the Audio or Network modules then add `SFML::Audio` or `SFML::Network` to the `target_link_libraries` call alongside the existing `SFML::Graphics` library that is being linked.
-7. If you use Linux, install SFML's dependencies using your system package manager. On Ubuntu and other Debian-based distributions you can use the following commands:
-   ```
-   sudo apt update
-   sudo apt install \
-       libxrandr-dev \
-       libxcursor-dev \
-       libxi-dev \
-       libudev-dev \
-       libfreetype-dev \
-       libflac-dev \
-       libvorbis-dev \
-       libgl1-mesa-dev \
-       libegl1-mesa-dev \
-       libfreetype-dev
-   ```
-8. Configure and build your project. Most popular IDEs support CMake projects with very little effort on your part.
+### C++20
 
-   - [VS Code](https://code.visualstudio.com) via the [CMake extension](https://code.visualstudio.com/docs/cpp/cmake-linux)
-   - [Visual Studio](https://docs.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio?view=msvc-170)
-   - [CLion](https://www.jetbrains.com/clion/features/cmake-support.html)
-   - [Qt Creator](https://doc.qt.io/qtcreator/creator-project-cmake.html)
+Optamos por utilizar o C++20 devido às suas melhorias significativas em segurança e legibilidade de código, como:
 
-   Using CMake from the command line is straightforward as well.
-   Be sure to run these commands in the root directory of the project you just created.
+- `std::ranges` e `std::views` para manipulação eficiente de coleções.
+- `std::optional` para tratamento seguro de valores opcionais.
+- `std::numbers` para constantes matemáticas padronizadas.
+- `std::string_view` para manipulação eficiente de strings.
 
-   ```
-   cmake -B build
-   cmake --build build
-   ```
+Essas funcionalidades modernas permitiram um código mais limpo, seguro e performático.
 
-9. Enjoy!
+### SFML 3.0
 
-## Upgrading SFML
+A **Simple and Fast Multimedia Library (SFML)** é uma biblioteca multimídia multiplataforma escrita em C++. Utilizamos a versão 3.0, que trouxe diversas melhorias:
 
-SFML is found via CMake's [FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html) module.
-FetchContent automatically downloads SFML from GitHub and builds it alongside your own code.
-Beyond the convenience of not having to install SFML yourself, this ensures ABI compatibility and simplifies things like specifying static versus shared libraries.
+- Atualização para suporte e uso de C++17.
+- Substituição do OpenAL por miniaudio, simplificando o gerenciamento de áudio.
+- Novas APIs de tratamento de eventos mais robustas.
+- Suporte a scissor e stencil testing.
+- Melhorias na modularidade e suporte a UTF-8.
 
-Modifying what version of SFML you want is as easy as changing the `GIT_TAG` argument.
-Currently it uses SFML 3 via the `3.0.0` tag.
+A SFML foi escolhida por sua simplicidade e eficiência na manipulação de gráficos, áudio e entrada de usuário, sem ser uma biblioteca de interface gráfica como o Swing.
 
-## But I want to...
+### OpenGL e GLSL
 
-Modify CMake options by adding them as configuration parameters (with a `-D` flag) or by modifying the contents of CMakeCache.txt and rebuilding.
+Para efeitos visuais avançados, como o fundo animado com cores listradas, utilizamos **OpenGL** diretamente com shaders escritos em **GLSL**. A SFML permite a integração nativa com OpenGL, facilitando a criação de efeitos personalizados que são executados diretamente na GPU, garantindo alta performance.
 
-### Not use GitHub
+Os shaders utilizados estão localizados na pasta `Assets/`:
 
-You can use this project without a GitHub account by [downloading the contents](https://github.com/SFML/cmake-sfml-project/archive/refs/heads/master.zip) of the repository as a ZIP archive and unpacking it locally.
-This approach also avoids using Git entirely if you would prefer to not do that.
+- `shader_notas.vsh/.fsh`: Shaders para renderização das notas.
+- `shader_fundo.vsh/.fsh`: Shader para o fundo animado.
 
-### Change Compilers
+### CMake
 
-See the variety of [`CMAKE_<LANG>_COMPILER`](https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_COMPILER.html) options.
-In particular you'll want to modify `CMAKE_CXX_COMPILER` to point to the C++ compiler you wish to use.
+Para automatizar o processo de build, utilizamos o **CMake**, uma ferramenta moderna e multiplataforma que facilita a compilação e organização do projeto. Com o CMake, evitamos a necessidade de compilar manualmente, tornando o processo mais prático e eficiente.
 
-### Change Compiler Optimizations
+## Estrutura do Projeto
 
-CMake abstracts away specific optimizer flags through the [`CMAKE_BUILD_TYPE`](https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html) option.
-By default this project recommends `Release` builds which enable optimizations.
-Other build types include `Debug` builds which enable debug symbols but disable optimizations.
-If you're using a multi-configuration generator (as is often the case on Windows), you can modify the [`CMAKE_CONFIGURATION_TYPES`](https://cmake.org/cmake/help/latest/variable/CMAKE_CONFIGURATION_TYPES.html#variable:CMAKE_CONFIGURATION_TYPES) option.
+```
+riff-hero-cpp/
+├── src/ # Código-fonte principal
+│ ├── main.cpp
+├── notes.chart # Mapa de notas da música
+├── song.ogg # Música correspondente ao chart
+├── fonte.ttf # Fonte utilizada no jogo
+├── hit.ogg # Som de acerto
+├── branco.png # Textura auxiliar
+├── background.png # Fundo do jogo
+├── shader_notas.vsh/.fsh # Shaders de notas (GLSL)
+├── shader_fundo.vsh/.fsh # Shader de fundo animado
+├── CMakeLists.txt # Script de build com CMake
+└── README.md # Este documento
+```
 
-### Change Generators
+## Controles
 
-While CMake will attempt to pick a suitable default generator, some systems offer a number of generators to choose from.
-Ubuntu, for example, offers Makefiles and Ninja as two potential options.
-For a list of generators, click [here](https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html).
-To modify the generator you're using you must reconfigure your project providing a `-G` flag with a value corresponding to the generator you want.
-You can't simply modify an entry in the CMakeCache.txt file unlike the above options.
-Then you may rebuild your project with this new generator.
+| Jogador | Teclas |
+|--------|--------|
+| J1     | A, S, D, F, G |
+| J2     | J, K, L, ;, ' |
+| Ambos  | Espaço = Iniciar / Reiniciar |
 
-## More Reading
+## Formato `.chart`
 
-Here are some useful resources if you want to learn more about CMake:
+Utilizamos o formato `.chart`, popular na comunidade de fãs do Guitar Hero, para representar os mapas das músicas. Tentamos implementar detecção automática de notas, mas a precisão era baixa. A escolha por `.chart` permite mapas feitos por humanos, com resultados muito melhores.
 
-- [Official CMake Tutorial](https://cmake.org/cmake/help/latest/guide/tutorial/)
-- [How to Use CMake Without the Agonizing Pain - Part 1](https://alexreinking.com/blog/how-to-use-cmake-without-the-agonizing-pain-part-1.html)
-- [How to Use CMake Without the Agonizing Pain - Part 2](https://alexreinking.com/blog/how-to-use-cmake-without-the-agonizing-pain-part-2.html)
-- [Better CMake YouTube series by Jefferon Amstutz](https://www.youtube.com/playlist?list=PL8i3OhJb4FNV10aIZ8oF0AA46HgA2ed8g)
+Esses arquivos incluem:
 
-## License
+- Metadados (nome, artista, álbum).
+- Notas (tick, pista, duração).
+- Mudança de tempo (BPM).
+- Assinaturas de compasso.
 
-The source code is dual licensed under Public Domain and MIT -- choose whichever you prefer.
+A leitura do `.chart` foi implementada com um parser próprio.
+
+## Controles
+
+| Jogador | Teclas                |
+|---------|-----------------------|
+| J1      | A, S, D, F, G         |
+| J2      | J, K, L, ;, '         |
+| Ambos   | Espaço = Iniciar/Reiniciar |
+
+## Equipe
+
+- **Vinícius Schroeder** — Desenvolvimento geral, lógica e estrutura.
+- **Gabriel Rech Brand** — Parsing do arquivo `.chart`.
+- **Luiz Eduardo Ramos Maier** — Organização das tarefas no Trello e efeitos visuais com shaders.
+- **André de Oliveira da Silva** — README e documentação técnica.
+- **João Vitor Broering Lehmkuhl** — Organização das tarefas no Trello e apoio à documentação.
+
+## Licença e Direitos Autorais
+
+Este projeto é de uso exclusivamente acadêmico. Todos os charts utilizados foram criados por fãs e mantêm seus devidos créditos no aplicativo.  
+**Não possuímos fins comerciais nem redistribuímos conteúdo protegido.**
+
+---
