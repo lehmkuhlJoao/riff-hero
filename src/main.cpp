@@ -157,11 +157,11 @@ std::string lerArquivoUtf8(const std::string& caminhoArquivo) {
  * @brief Representa uma partícula do sistema de efeitos visuais
  */
 struct Particula {
-    sf::Vector2f posicao;
-    sf::Vector2f velocidade;
-    sf::Time tempoVida;
-    sf::Color cor;
-    sf::RectangleShape forma;
+    sf::Vector2f posicao{0.0f, 0.0f};
+    sf::Vector2f velocidade{0.0f, 0.0f};
+    sf::Time tempoVida{sf::Time::Zero};
+    sf::Color cor{sf::Color::White};
+    sf::RectangleShape forma{sf::Vector2f(1.0f, 1.0f)};
 };
 
 /**
