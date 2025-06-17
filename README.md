@@ -1,6 +1,6 @@
 # SFML Riff Hero
 
-Projeto acadêmico desenvolvido para a disciplina de Estrutura de Dados, o **SFML Riff Hero** é um jogo de ritmo inspirado no Guitar Hero. O jogo foi construído do zero utilizando C++ moderno, com foco em desempenho, portabilidade e efeitos visuais avançados.
+Projeto acadêmico desenvolvido para a disciplina de Estrutura de Dados, o **Riff Hero** é um jogo de ritmo inspirado no Guitar Hero. O jogo foi construído do zero utilizando C++ moderno, com foco em desempenho, portabilidade e efeitos visuais avançados.
 
 ## Sobre o Jogo
 
@@ -98,17 +98,16 @@ A leitura do `.chart` foi implementada com um parser próprio.
 | J2      | J, K, L, ;, '         |
 | Ambos   | Espaço = Iniciar/Reiniciar |
 
-## Equipe
+## Equipe e Tarefas
 
-- **Vinícius Schroeder** — Desenvolvimento geral, lógica e estrutura.
-- **Gabriel Rech Brand** — Parsing do arquivo `.chart`.
-- **Luiz Eduardo Ramos Maier** — Organização das tarefas no Trello e efeitos visuais com shaders.
-- **André de Oliveira da Silva** — README e documentação técnica.
-- **João Vitor Broering Lehmkuhl** — Organização das tarefas no Trello e apoio à documentação.
+- **Vinícius Schroeder** & **Gabriel Rech Brand** — Desenvolvimento de algorítmos com estrutura de dados, lógica e regras do jogo.
+- **Gabriel Rech Brand & João Vitor Broering Lehmkuhl** — Interface do jogo.
+- **André de Oliveira da Silva & Luiz Eduardo Ramos Maier** — Documentação e análise de complexidade.
+- **Luiz Eduardo Ramos Maier** — Organização do projeto.
 
 ## Licença e Direitos Autorais
 
-Este projeto é de uso exclusivamente acadêmico. Todos os charts utilizados foram criados por fãs e mantêm seus devidos créditos no aplicativo.  
+Este projeto é de uso exclusivamente acadêmico. Todos os charts utilizados foram criados por fãs e mantêm seus devidos créditos no aplicativo.
 **Não possuímos fins comerciais nem redistribuímos conteúdo protegido.**
 
 ---
