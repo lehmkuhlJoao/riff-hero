@@ -1,4 +1,4 @@
-# SFML Riff Hero
+# Riff Hero
 
 Projeto acadêmico desenvolvido para a disciplina de Estrutura de Dados, o **Riff Hero** é um jogo de ritmo inspirado no Guitar Hero. O jogo foi construído do zero utilizando C++ moderno, com foco em desempenho, portabilidade e efeitos visuais avançados.
 
