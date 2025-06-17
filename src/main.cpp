@@ -53,8 +53,8 @@
 
 // Configurações de arquivo e janela
 constexpr auto CAMINHO_ARQUIVO_CHART = "notes.chart";
-constexpr auto LARGURA_JANELA = 1200;
-constexpr auto ALTURA_JANELA = 1200;
+constexpr auto LARGURA_JANELA = 800;
+constexpr auto ALTURA_JANELA = 600;
 
 // Layout da interface
 constexpr auto LARGURA_PAINEL_CENTRAL = 400;
@@ -844,6 +844,7 @@ private:
 
                     // Cria notas para ambos os jogadores
                     todasNotasMusicaMestre.emplace_back(notaChart, tempoNotaSec, tempoFimSustainSec, &jogador1);
+                    todasNotasMusicaMestre.emplace_back(notaChart, tempoNotaSec, tempoFimSustainSec, &jogador2);
                 }
             }
         }
